@@ -1,0 +1,31 @@
+{
+  "name": "nodeorm",
+  "version": "1.0.0",
+  "description": "NodeORM - A powerful and elegant ORM (Object-Relational Mapping) library for Node.js, inspired by Laravel's Eloquent. Simplify database interactions and streamline your Node.js application development.",
+  "main": "index.js",
+  "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/obaydmerz/nodeorm.git"
+  },
+  "keywords": [
+    "nodejs",
+    "node",
+    "orm",
+    "database",
+    "laravel",
+    "eloquent",
+    "mysql",
+    "sqlite",
+    "storage"
+  ],
+  "author": {
+    "name": "Abderrahmene Merzoug",
+    "email": "obaydmerz@gmail.com"
+  },
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/obaydmerz/nodeorm/issues"
+  },
+  "homepage": "https://github.com/obaydmerz/nodeorm#readme"
+}
