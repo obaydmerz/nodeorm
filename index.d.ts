@@ -103,6 +103,12 @@ export declare class SQLBuilder {
   first(modIndex?: number): Promise<ModelItem | undefined>;
 
   /**
+   * Retrieves the first ModelItem from the SQL query result, or creates it.
+   * @returns A Promise that resolves to the first ModelItem from the query result, or a new one if not found.
+   */
+  firstOrCreate(): Promise<ModelItem>;
+
+  /**
    * Retrieves the last ModelItem from the SQL query result.
    * @param modIndex - The index modifier for getting the last item (optional, default is 0).
    * @returns A Promise that resolves to the last ModelItem from the query result, or undefined if not found.

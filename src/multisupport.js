@@ -16,10 +16,16 @@ export class DBDriver {
     return false;
   }
 
-  static determine(dbinstance, ...dbdrivers) {
+  static async determine(dbinstance, ...dbdrivers) {
     for (const driver of dbdrivers) {
-      if (driver.prototype instanceof DBDriver && driver.verify(dbinstance))
-        return new driver(dbinstance);
+      if (driver.prototype instanceof DBDriver) {
+        const v = driver.verify(dbinstance);
+        if (v == true) return new driver(dbinstance);
+        else if (v == false || v == undefined) continue;
+        else {
+          return await driver.from(v);
+        }
+      }
     }
     return null;
   }
@@ -32,10 +38,12 @@ export class DBDriver {
   commands = {};
 
   constructor(dbinstance) {
-    if (typeof dbinstance != "object" || dbinstance == null)
+    if (typeof dbinstance != "object" || dbinstance == null) {
       throw new Error("Invalid database instance");
+    }
 
     this.dbinstance = dbinstance;
+    var that = this;
 
     this.commands = {
       insertRow: ({ table, data }) => {
@@ -102,7 +110,7 @@ export class DBDriver {
       },
       describe: async (table) => {
         var res = [];
-        for (const row of await that.query(`DESC \`${table}\`)`)) {
+        for (const row of await this.query(`DESC \`${table}\``)) {
           res.push({
             name: row.Field,
             isPrimary: row.Key.includes("PRI"),
@@ -137,12 +145,32 @@ export class MySQLDBDriver extends DBDriver {
   }
 
   static verify(dbinstance) {
+    if (typeof dbinstance == "string") {
+      try {
+        const url = new URL(
+          a.includes("://")
+            ? a.startsWith("mysql")
+              ? "http" + a.substring(5)
+              : a
+            : "http://" + a
+        );
+        return {
+          host: url.host,
+          port: parseInt(url.port || "3306"),
+          username: url.username || "root",
+          password: url.password,
+          database: url.pathname.substring(1) || "db",
+        };
+      } catch (error) {
+        return false;
+      }
+    }
+
     return (
       dbinstance &&
       typeof dbinstance === "object" &&
       typeof dbinstance.escape === "function" &&
       typeof dbinstance.query === "function" &&
-      typeof dbinstance.execute === "function" &&
       typeof dbinstance.beginTransaction === "function" &&
       typeof dbinstance.commit === "function" &&
       typeof dbinstance.rollback === "function" &&
@@ -197,9 +225,8 @@ export class MySQLDBDriver extends DBDriver {
 
   query(query, params = []) {
     return new Promise((resolve, reject) => {
-      console.log(this.dbinstance);
       this.dbinstance.query(query, params, (err, result) => {
-        if (err) return reject(err);
+        if (err) return console.log(query.split(","), reject({ query, err }));
         resolve(result);
       });
     });
@@ -210,10 +237,18 @@ export class SQLiteDBDriver extends DBDriver {
   envType = "sqlite";
 
   static extractFromEnv() {
-    return typeof process.env["DB_DATABASE"] == "string" ? process.env["DB_DATABASE"] : ":memory:";
+    return typeof process.env["DB_DATABASE"] == "string"
+      ? process.env["DB_DATABASE"]
+      : ":memory:";
   }
 
   static verify(dbinstance) {
+    if (
+      typeof dbinstance == "string" &&
+      (!dbinstance.includes("://") || dbinstance == ":memory:")
+    ) {
+      return dbinstance;
+    }
     if (typeof dbinstance === "object" && dbinstance !== null) {
       return (
         dbinstance.constructor && dbinstance.constructor.name === "Database"

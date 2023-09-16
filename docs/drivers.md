@@ -1,4 +1,0 @@
-## Supported drivers below
-
-### MySQL
--

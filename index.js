@@ -6,11 +6,7 @@ import {
   SQLiteDBDriver,
 } from "./src/multisupport.js";
 import { getJoinedSelection } from "./src/extra.js";
-import {
-  EmptyDataError,
-  errors,
-  fire,
-} from "./src/errors.js";
+import { EmptyDataError, errors, fire } from "./src/errors.js";
 
 export class NodeORM {
   static dbdrivers = [MySQLDBDriver, SQLiteDBDriver, RawFunctionDBDriver];
@@ -25,11 +21,14 @@ export class NodeORM {
     // No need to redo much stuff...
     if (dbinstance instanceof DBDriver) return dbinstance;
 
-    const dbdetermine = DBDriver.determine(dbinstance, this.dbdrivers);
+    const dbdetermine = await DBDriver.determine(dbinstance, ...this.dbdrivers);
     // They gave us some stuff that helped us connecting to a database.
     if (dbdetermine instanceof DBDriver) return dbdetermine;
 
-    const dfdetermine = DBDriver.determine(this.defaultDB, this.dbdrivers);
+    const dfdetermine = await DBDriver.determine(
+      this.defaultDB,
+      ...this.dbdrivers
+    );
     // But they also gave us a default..
     if (dfdetermine instanceof DBDriver) return dfdetermine;
 
@@ -162,6 +161,11 @@ export class SQLBuilder {
     return (await this.get()).first(modIndex);
   }
 
+  async firstOrCreate() {
+    const item = (await this.get()).first(0);
+    return item || this.#model.create(this._extra.newCreationTemplate);
+  }
+
   async last(modIndex = 0) {
     return (await this.get()).last(modIndex);
   }
@@ -175,7 +179,7 @@ export class SQLBuilder {
   }
 }
 
-// Needs to be shipped with original data
+// Needs to be shipped with data
 // Otherwise it will be considered as newly created.
 export class ModelItem {
   #model = null;
@@ -308,7 +312,10 @@ export class ModelItem {
 
       for (const col of this.#model.columns) {
         // Let's fetch data, there are some changes. like auto_increment, defaults...
-        if (res[0] != undefined) this.#data[col] = res[0][col];
+        if (res[0] != undefined) {
+          this.#data[col] = res[0][col];
+          if(Object.hasOwnProperty.call(this.#clause, col)) this.#clause[col] = res[0][col];
+        }
       }
     }
 
@@ -367,7 +374,7 @@ export class Model {
       if (this.connection == undefined) {
         this.connection = connection;
       }
-      
+
       if (this.connection == undefined) {
         return; // Still undefined!
       }
