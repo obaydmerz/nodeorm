@@ -45,12 +45,27 @@ npm install obaydmerz/nodeorm
 ## Examples
 
 ```javascript
+// SQLite example
 import { Model } from "@obayd/nodeorm";
 
 class Test extends Model {}
 
 (async () => {
   await Model.init("C:/Users/Hello/Documents/mysqlite.db", Test);
+
+  const my = await Test.last();
+  console.log(my.myVal);
+})();
+```
+
+```javascript
+// MySQL example
+import { Model } from "@obayd/nodeorm";
+
+class Test extends Model {}
+
+(async () => {
+  await Model.init("mysql://root@localhost:3306", Test);
 
   const my = await Test.last();
   console.log(my.myVal);

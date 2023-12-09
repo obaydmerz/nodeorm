@@ -1,7 +1,7 @@
 import { Model, ModelItem } from "./model.js";
 
 export class Collection {
-  async makeJoined(model, result, joins, newCreationTemplate) {
+  static async makeJoined(model, result, joins, newCreationTemplate) {
     const res = new this([], {
       createModel: model,
       newCreationTemplate: newCreationTemplate,
