@@ -1,29 +1,3 @@
-import { DBDriver, NodeORM } from "../index.js";
-import { MySQLDBDriver, SQLiteDBDriver } from "./multisupport.js";
-
-export async function readEnv() {
-  if (
-    typeof process.env["DB_CONNECTION"] !== "string" ||
-    process.env["DB_CONNECTION"].length == 0
-  ) {
-    throw new Error(
-      "When using env, the 'DB_CONNECTION' variable must be a non-empty string!"
-    );
-  }
-
-  const dbConnection = process.env["DB_CONNECTION"].toLowerCase();
-
-  for (const dbdriver in NodeORM.dbdrivers) {
-    if (!(dbdriver.prototype instanceof DBDriver)) continue;
-    if (!(dbdriver.envType == dbConnection)) continue;
-    if (!(typeof dbdriver.extractFromEnv != "function")) continue;
-
-    return await dbdriver.from(dbdriver.extractFromEnv());
-  }
-
-  throw new Error(`Unsupported database type: ${dbConnection}`);
-}
-
 export function checkPropsOf(obj, ...props) {
   if (typeof obj !== "object") return false;
   for (const prop of props) {
@@ -32,116 +6,17 @@ export function checkPropsOf(obj, ...props) {
   return true;
 }
 
-/**
- * Generates a list from strings
- */
-export function generateValueSep(
-  array,
-  extra = { stringChar: undefined },
-  unempty = ""
-) {
-  if (!Array.isArray(array)) return "";
+export function prepareObj(obj, join = " AND ") {
+  const preps = [];
+  const str = Object.keys(obj)
+    .filter((e) => !e.startsWith("%"))
+    .map((e) => {
+      preps.push(e, obj[e]);
+      return "?? " + (obj["%" + e] || "=") + " ?";
+    })
+    .join(join);
 
-  let res = "";
-  for (let i = 0; i < array.length; i++) {
-    const iterator = array[i];
-    if (typeof iterator === "string" && iterator.startsWith("@")) {
-      res += iterator.substring(1);
-    } else {
-      res += encodeSQLValue(iterator, extra);
-    }
-    if (i < array.length - 1) res += ", ";
-  }
-  if (res.length === 0) {
-    res = unempty;
-  }
-  return res;
-}
-
-export function normalize(str) {
-  return str.replace(/\'/gm, "\\'");
-}
-
-/**
- * Encodes a value into a processable sql value
- */
-export function encodeSQLValue(x, { stringChar = undefined } = {}) {
-  switch (typeof x) {
-    case "boolean":
-      return x ? "true" : "false";
-    case "number":
-    case "bigint":
-      return isNaN(x) ? '"NaN"' : String(x);
-    case "string":
-    case "symbol":
-      stringChar = stringChar == undefined ? "'" : stringChar;
-      return stringChar + normalize(x) + stringChar;
-    case "object":
-      return x === null ? "null" : "'" + JSON.stringify(x) + "'";
-    case "undefined":
-      return "undefined";
-    case "function":
-      return "< FUNCTION >";
-    default:
-      return String(x);
-  }
-}
-
-/**
- * Generate key = value pairs from objects
- * Use keys that starts with `%` to choose the delemiter between key and value;
- *
- * Ex:
- *  `{"key": "value", "%key": ">"}` may return `key > value`.
- * If a delimiter ends with a `@` it's value won't be treated nor processed.
- *
- * @param {Object} obj
- * @returns {string}
- */
-export function genPairsFromObj(obj, sep = ", ") {
-  if (typeof obj !== "object") return "";
-
-  let res = "";
-  const keys = Object.keys(obj);
-
-  for (let i = 0; i < keys.length; i++) {
-    const key = keys[i];
-
-    if (key.startsWith("%")) continue;
-
-    const element = obj[key];
-    const exp = obj["%" + key] ? obj["%" + key] : "=";
-    const isPureExpression = exp.endsWith("@");
-
-    res += `${key} ${isPureExpression ? exp.slice(0, -1) : exp} ${
-      isPureExpression ? element : encodeSQLValue(element)
-    }`;
-    if (i < keys.length - 2) res += sep;
-  }
-
-  return res;
-}
-
-/**
- * If `cond` content is valuable -> return data
- *
- * Else -> return ""
- */
-export function conditionOrNothing(data, cond) {
-  if (typeof cond === "object") {
-    if (Array.isArray(cond) && cond.length === 0) return "";
-    if (cond === null || Object.keys(cond).length === 0) return "";
-  }
-
-  if (typeof cond === "string" && cond.trim() === "") return "";
-
-  if (typeof cond === "undefined") return "";
-
-  if (typeof cond === "number" && cond <= 0 && !isNaN(cond)) return "";
-
-  if (typeof cond === "boolean" && !cond) return "";
-
-  return data;
+  return { str, preps };
 }
 
 /**
@@ -156,25 +31,6 @@ export function maskObject(object, mask) {
   }
   return nObject;
 }
-
-/**
- * Ensure thats a function.
- *
- * To prevent errors.
- */
-export function applyFunction(fn, ...args) {
-  if (typeof fn == "function") {
-    return fn(...args);
-  }
-
-  return undefined;
-}
-
-Array.prototype.carePush = function (...x) {
-  for (const y of x) {
-    if (!this.includes(y)) this.push(y);
-  }
-};
 
 String.prototype.toPlural = function () {
   if (this.endsWith("y")) {
@@ -196,5 +52,28 @@ String.prototype.toSingular = function () {
   if (this.endsWith("s")) {
     return this.slice(0, -1);
   }
+  return this;
+};
+
+String.prototype.safe = function () {
+  const d = new String(this);
+  d._safe = true;
+  return d;
+};
+
+/**
+ * If `cond` content is valuable -> return data
+ *
+ * Else -> return ""
+ */
+String.prototype.cond = function (cond) {
+  if (Array.isArray(cond) && cond.length === 0) return "";
+
+  if (typeof cond === "object") {
+    if (cond === null || Object.keys(cond).length === 0) return "";
+  }
+
+  if (cond.length == 0) return "";
+
   return this;
 };

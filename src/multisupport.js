@@ -1,37 +1,50 @@
 import { Model } from "../index.js";
-import {
-  conditionOrNothing,
-  genPairsFromObj,
-  generateValueSep,
-} from "./utils.js";
+import { LibraryNotFound } from "./errors.js";
+import { prepareObj } from "./utils.js";
+import { basename } from "path";
 
-export class DBDriver {
-  envType = "";
+export async function getLibrary(...librarySets) {
+  let libraries = [];
 
-  static extractFromEnv() {
-    return "";
+  for (const lib of librarySets.flat()) {
+    if (lib instanceof Promise) libraries.push(await lib);
+    else libraries.push(lib);
   }
 
-  static verify(dbinstance) {
+  for (const library of libraries) {
+    switch (typeof library) {
+      case "string":
+        try {
+          return await import(library);
+        } catch (error) {}
+        break;
+
+      case "object":
+        if (
+          typeof this.verifyLibraryObject == "function" &&
+          this.verifyLibraryObject(library)
+        )
+          return library;
+    }
+  }
+}
+
+export class DBDriver {
+  static library = [];
+  static extractFromEnv(envObject) {
+    return undefined;
+  }
+
+  static verifyLibraryObject(library) {
     return false;
   }
 
-  static async determine(dbinstance, ...dbdrivers) {
-    for (const driver of dbdrivers) {
-      if (driver.prototype instanceof DBDriver) {
-        const v = driver.verify(dbinstance);
-        if (v == true) return new driver(dbinstance);
-        else if (v == false || v == undefined) continue;
-        else {
-          return await driver.from(v);
-        }
-      }
-    }
-    return null;
+  static verifyInstanceObject(dbinstance) {
+    return false;
   }
 
-  static from(options = {}) {
-    throw new Error(`Cannot get a dbdriver from this abstract class.`);
+  static make(options = {}) {
+    return undefined;
   }
 
   dbinstance = undefined;
@@ -43,29 +56,28 @@ export class DBDriver {
     }
 
     this.dbinstance = dbinstance;
-    var that = this;
 
     this.commands = {
       insertRow: ({ table, data }) => {
-        const columns = generateValueSep(Object.keys(data), {
-          stringChar: "`",
-        });
-        const values = generateValueSep(Object.values(data));
-        return this.query(
-          `INSERT INTO \`${table}\` (${columns}) VALUES (${values})`
-        );
+        return this.query(`INSERT INTO \`${table}\`(??) VALUES (?)`, [
+          Object.keys(data),
+          Object.values(data),
+        ]);
       },
       deleteRow: ({ table, where }) => {
-        const condition = `WHERE ${genPairsFromObj(where, " AND ")}`;
-        const whereClause = conditionOrNothing(condition, where);
-        return this.query(`DELETE FROM \`${table}\` ${whereClause}`);
+        const { str, preps } = prepareObj(where);
+
+        return this.query(
+          `DELETE FROM \`${table}\` ${`WHERE ${str}`.cond(where)}`,
+          preps
+        );
       },
       updateRow: ({ table, data, where }) => {
-        const setClause = genPairsFromObj(data);
-        const condition = `WHERE ${genPairsFromObj(where, " AND ")}`;
-        const whereClause = conditionOrNothing(condition, where);
+        const { str, preps } = prepareObj(where);
+
         return this.query(
-          `UPDATE \`${table}\` SET ${setClause} ${whereClause}`
+          `UPDATE \`${table}\` SET ? ${`WHERE ${str}`.cond(where)}`,
+          [data, ...preps]
         );
       },
       selectRow: ({
@@ -76,36 +88,21 @@ export class DBDriver {
         orderby = "",
         ordertype = "ASC",
       }) => {
-        const selectedColumns = generateValueSep(
-          columns,
-          { stringChar: "" },
-          "*"
-        );
-        const selectedTables = generateValueSep(
-          tables,
-          { stringChar: "`" },
-          ""
-        );
-        const condition = `WHERE ${genPairsFromObj(where, " AND ")}`;
-        const whereClause = conditionOrNothing(condition, where);
-        const orderClause = conditionOrNothing(
-          `ORDER BY \`${orderby}\` ${ordertype}`,
-          orderby
-        );
-        const limitClause = conditionOrNothing(`LIMIT ${limit}`, limit);
+        const { str, preps } = prepareObj(where);
+
         return this.query(
-          `SELECT ${selectedColumns} FROM ${selectedTables} ${whereClause} ${orderClause} ${limitClause}`
-        );
-      },
-      lastinsert: async (columns, table, primary) => {
-        return await that.query(
-          `SELECT ${generateValueSep(
-            columns,
-            {
-              stringChar: "`",
-            },
-            "*"
-          )} FROM \`${table}\` WHERE ${primary} = (SELECT LAST_INSERT_ID())`
+          `SELECT ?? FROM ?? ${`WHERE ${str}`.cond(
+            where
+          )} ${`ORDER BY ?? ${ordertype}`.cond(orderby)} ${`LIMIT ?`.cond(
+            limit
+          )}`,
+          [
+            columns.length ? columns : dbinstance.raw("*"),
+            tables,
+            ...preps,
+            ...(orderby ? [orderby] : []),
+            limit,
+          ]
         );
       },
       describe: async (table) => {
@@ -133,39 +130,31 @@ export class DBDriver {
 }
 
 export class MySQLDBDriver extends DBDriver {
-  envType = "mysql";
+  static library = ["mysql2", "mysql"];
 
-  static extractFromEnv() {
-    return {
-      host: process.env["DB_HOST"] || "localhost",
-      database: process.env["DB_DATABASE"] || "db",
-      user: process.env["DB_USERNAME"] || "root",
-      password: process.env["DB_PASSWORD"] || "",
-    };
+  static extractFromEnv(envObject) {
+    if (envObject["DB_CONNECTION"] != "mysql") return;
+
+    return [
+      {
+        libraries: (envObject["DB_LIBRARY"] || "").split(","),
+        host: envObject["DB_HOST"] || "localhost",
+        database: envObject["DB_DATABASE"] || "db",
+        user: envObject["DB_USERNAME"] || "root",
+        password: envObject["DB_PASSWORD"] || "",
+      },
+    ];
   }
 
-  static verify(dbinstance) {
-    if (typeof dbinstance == "string") {
-      try {
-        const url = new URL(
-          a.includes("://")
-            ? a.startsWith("mysql")
-              ? "http" + a.substring(5)
-              : a
-            : "http://" + a
-        );
-        return {
-          host: url.host,
-          port: parseInt(url.port || "3306"),
-          username: url.username || "root",
-          password: url.password,
-          database: url.pathname.substring(1) || "db",
-        };
-      } catch (error) {
-        return false;
-      }
-    }
+  static verifyLibraryObject(library) {
+    return (
+      library &&
+      typeof library === "object" &&
+      typeof library.createConnection === "function"
+    );
+  }
 
+  static verifyInstanceObject(dbinstance) {
     return (
       dbinstance &&
       typeof dbinstance === "object" &&
@@ -179,24 +168,55 @@ export class MySQLDBDriver extends DBDriver {
     );
   }
 
-  static async from({
+  static async make(dbinstance) {
+    if (typeof dbinstance == "string") {
+      const url = new URL(
+        !dbinstance.includes("://") ? "mysql://" + dbinstance : dbinstance
+      );
+      if (!["mysql:", "sql:"].includes(url.protocol)) return;
+
+      return new this(
+        await this.createConnection({
+          host: url.hostname,
+          libraries: String(url).split(","),
+          port: parseInt(url.port || "3306"),
+          username: url.username || "root",
+          password: url.password,
+          database: url.pathname.substring(1) || "database",
+        })
+      );
+    }
+
+    if (this.verifyInstanceObject(dbinstance)) return new this(dbinstance);
+
+    if (dbinstance && typeof dbinstance === "object") {
+      return new this(await this.createConnection(dbinstance));
+    }
+
+    return;
+  }
+
+  /** Private, will create a connection from a given configuration object */
+  static async createConnection({
     database = "db",
     host = "localhost",
     port = 3306,
     user = "root",
     password = "",
+    libraries = undefined,
   } = {}) {
-    let mysqlLibrary;
-    try {
-      mysqlLibrary = await import("mysql2");
-    } catch (error) {
-      try {
-        mysqlLibrary = await import("mysql");
-      } catch (error) {
-        throw new Error(
-          "MySQL or MySQL2 library not found. Please install either 'mysql' or 'mysql2' package."
-        );
-      }
+    let mysqlLibrary = await getLibrary.call(
+      {
+        verifyLibraryObject: this.verifyLibraryObject,
+      },
+      libraries,
+      this.library
+    );
+
+    if (mysqlLibrary === undefined) {
+      throw new LibraryNotFound(
+        "MySQL library not found. Please install 'mysql2' or 'mysql' package. or include a valid package via MySQLDBDriver.library or DB_LIBRARY environment variable when working with environment."
+      );
     }
 
     const connection = mysqlLibrary.createConnection({
@@ -206,6 +226,7 @@ export class MySQLDBDriver extends DBDriver {
       user,
       password,
     });
+
     connection.once("error", (err) => {
       console.error("MySQL connection error:", err);
     });
@@ -220,13 +241,18 @@ export class MySQLDBDriver extends DBDriver {
       });
     });
 
-    return new MySQLDBDriver(connection);
+    return connection;
   }
 
-  query(query, params = []) {
+  query(query, prepared = []) {
     return new Promise((resolve, reject) => {
-      this.dbinstance.query(query, params, (err, result) => {
-        if (err) return console.log(query.split(","), reject({ query, err }));
+      const qu = this.dbinstance.format(query, prepared);
+      this.dbinstance.query(qu, [], (err, result) => {
+        if (err) {
+          console.log("\nSQL:", qu.split(",").join(",\n"));
+
+          return reject(err);
+        }
         resolve(result);
       });
     });
@@ -234,43 +260,61 @@ export class MySQLDBDriver extends DBDriver {
 }
 
 export class SQLiteDBDriver extends DBDriver {
-  envType = "sqlite";
-
-  static extractFromEnv() {
-    return typeof process.env["DB_DATABASE"] == "string"
-      ? process.env["DB_DATABASE"]
-      : ":memory:";
+  static library = ["sqlite3"];
+  static extractFromEnv(envObject) {
+    if (envObject["DB_CONNECTION"] != "sqlite") return;
+    return [
+      typeof envObject["DB_DATABASE"] == "string"
+        ? envObject["DB_DATABASE"]
+        : ":memory:",
+      envObject["DB_LIBRARY"],
+    ];
   }
 
-  static verify(dbinstance) {
+  static verifyLibraryObject(library) {
+    return (
+      library &&
+      typeof library == "object" &&
+      library.default &&
+      typeof library.default == "object" &&
+      library.defaut.Database
+    );
+  }
+
+  static verifyInstanceObject(dbinstance) {
+    return (
+      dbinstance &&
+      typeof dbinstance === "object" &&
+      dbinstance.constructor &&
+      dbinstance.constructor.name === "Database"
+    );
+  }
+
+  static async make(dbinstance, library) {
     if (
       typeof dbinstance == "string" &&
-      (!dbinstance.includes("://") || dbinstance == ":memory:")
+      ((dbinstance === basename(dbinstance) && dbinstance.endsWith(".db")) ||
+        dbinstance == ":memory:")
     ) {
-      return dbinstance;
+      return new this(await this.createConnection(dbinstance, library));
     }
-    if (typeof dbinstance === "object" && dbinstance !== null) {
-      return (
-        dbinstance.constructor && dbinstance.constructor.name === "Database"
-      );
-    }
-    return false;
+
+    if (this.verifyInstanceObject(dbinstance)) return new this(dbinstance);
   }
 
-  query(query) {
-    return new Promise((resolve, reject) => {
-      this.dbinstance.all(query, [], (err, result) => {
-        if (err) return reject(new Error(err));
-        resolve(result);
-      });
-    });
-  }
+  /** Private, will create a connection from a given path */
+  static async createConnection(dbPath, library) {
+    const sqliteLibrary = await getLibrary.call(
+      {
+        verifyLibraryObject: this.verifyLibraryObject,
+      },
+      library,
+      this.library
+    );
 
-  static async from(dbPath) {
-    const sqliteLibrary = await import("sqlite3");
     if (!sqliteLibrary) {
-      throw new Error(
-        "SQLite library not found. Please install 'sqlite3' package."
+      throw new LibraryNotFound(
+        "SQLite library not found. Please install 'sqlite3' package. or include a valid package via SQLiteDBDriver.library or DB_LIBRARY environment variable when working with environment."
       );
     }
 
@@ -282,7 +326,17 @@ export class SQLiteDBDriver extends DBDriver {
 
     return await new Promise((resolve) => {
       SQLiteConnection.serialize(() => {
-        resolve(new SQLiteDBDriver(SQLiteConnection));
+        resolve(SQLiteConnection);
+      });
+    });
+  }
+
+  query(query, prepared = []) {
+    return new Promise((resolve, reject) => {
+      this.dbinstance.all(query, prepared, (err, result) => {
+        if (err) return reject(new Error(err));
+        result.insertId = this.lastID;
+        resolve(result);
       });
     });
   }
@@ -292,17 +346,6 @@ export class SQLiteDBDriver extends DBDriver {
 
     this.commands = {
       ...this.commands,
-      lastinsert: async (columns, table, primary) => {
-        return await this.query(
-          `SELECT ${generateValueSep(
-            columns,
-            {
-              stringChar: "`",
-            },
-            "*"
-          )} FROM \`${table}\` WHERE ${primary} = (SELECT last_insert_rowid())`
-        );
-      },
       describe: async (table) => {
         var res = [];
         for (const row of await this.query(`pragma table_info ('${table}\')`)) {
@@ -318,14 +361,14 @@ export class SQLiteDBDriver extends DBDriver {
 }
 
 export class RawFunctionDBDriver extends DBDriver {
-  static verify(dbinstance) {
-    return typeof dbinstance === "function";
+  static from(dbinstance) {
+    if (typeof dbinstance === "function") return new this(dbinstance);
   }
 
-  query(query) {
+  query(query, prepared) {
     return new Promise((resolve, reject) => {
       try {
-        var raw = this.dbinstance(query);
+        var raw = this.dbinstance(query, prepared);
         if (!(raw instanceof Promise))
           return reject(
             new Error("Should the given driver function returns a Promise?")

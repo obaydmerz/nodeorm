@@ -59,19 +59,9 @@ export class Collection {
     return lastIndex >= 0 ? this.#arr[lastIndex] : undefined;
   }
 
-  lasts(column = "id", modIndex = 0) {
-    const lastItem = this.last(modIndex);
-    return lastItem ? lastItem.data[column] : undefined;
-  }
-
   first(modIndex = 0) {
     const firstIndex = 0 + modIndex;
     return firstIndex < this.#arr.length ? this.#arr[firstIndex] : undefined;
-  }
-
-  firsts(column = "id", modIndex = 0) {
-    const firstItem = this.first(modIndex);
-    return firstItem ? firstItem.data[column] : undefined;
   }
 
   async each(callback = async (item, index) => {}) {

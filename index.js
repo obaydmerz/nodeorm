@@ -1,4 +1,4 @@
-import { maskObject, readEnv } from "./src/utils.js";
+import { maskObject } from "./src/utils.js";
 import {
   DBDriver,
   MySQLDBDriver,
@@ -11,29 +11,51 @@ import { EmptyDataError, errors, fire } from "./src/errors.js";
 export class NodeORM {
   static dbdrivers = [MySQLDBDriver, SQLiteDBDriver, RawFunctionDBDriver];
 
-  static defaultDB = undefined;
+  static defaultDB = undefined; // Will fallback to env reading
 
-  static async determine(dbinstance = undefined) {
-    // They told us to read env variables.
-    if (typeof dbinstance == "string" && dbinstance.toLowerCase() == "env")
-      return await readEnv();
+  static envObject = process.env;
 
-    // No need to redo much stuff...
+  static async extractFromEnv() {
+    if (
+      typeof this.envObject["DB_CONNECTION"] !== "string" ||
+      this.envObject["DB_CONNECTION"].length == 0
+    ) {
+      throw new Error(
+        "When using environment. no 'DB_CONNECTION' env variable or it isn't a string."
+      );
+    }
+
+    for (const dbdriver in this.dbdrivers) {
+      try {
+        if (!(dbdriver.prototype instanceof DBDriver)) continue;
+        const data = dbdriver.extractFromEnv(this.envObject); // It should return an array, because that array is going to be 'extracted' into dbdriver.make() directly.
+
+        if (!Array.isArray(data)) continue;
+
+        return await dbdriver.make(...data);
+      } catch (error) {}
+    }
+
+    throw new Error(`Unsupported database type: ${dbConnection}`);
+  }
+
+  static async determine(dbinstance) {
+    dbinstance = dbinstance || this.defaultDB;
+
+    // If the given dbinstance is a promise, resolve it
+    if (dbinstance instanceof Promise) dbinstance = await dbinstance;
+
+    // Return the given DBDriver
     if (dbinstance instanceof DBDriver) return dbinstance;
 
-    const dbdetermine = await DBDriver.determine(dbinstance, ...this.dbdrivers);
-    // They gave us some stuff that helped us connecting to a database.
-    if (dbdetermine instanceof DBDriver) return dbdetermine;
-
-    const dfdetermine = await DBDriver.determine(
-      this.defaultDB,
-      ...this.dbdrivers
-    );
-    // But they also gave us a default..
-    if (dfdetermine instanceof DBDriver) return dfdetermine;
+    // Search for a DBDriver that can handle the given.
+    for (const dbdriver of this.dbdrivers) {
+      const made = await dbdriver.make(dbinstance);
+      if (made instanceof DBDriver) return made;
+    }
 
     // None of the above, fallback to env reading...
-    return await readEnv();
+    return await this.extractFromEnv();
   }
 }
 
@@ -157,8 +179,12 @@ export class SQLBuilder {
     );
   }
 
-  async first(modIndex = 0) {
-    return (await this.get()).first(modIndex);
+  async first() {
+    if (!this.#orderBy) this.#orderBy = this.#model.primary;
+
+    this.#limit = 1;
+
+    return await this.get().first();
   }
 
   async firstOrCreate() {
@@ -166,8 +192,14 @@ export class SQLBuilder {
     return item || this.#model.create(this._extra.newCreationTemplate);
   }
 
-  async last(modIndex = 0) {
-    return (await this.get()).last(modIndex);
+  async last() {
+    if (!this.#orderBy) this.#orderBy = this.#model.primary;
+    if (this.#orderType.toLowerCase() == "desc") this.#orderType = "ASC";
+    else this.#orderType = "DESC";
+
+    this.#limit = 1;
+
+    return (await this.get()).first();
   }
 
   async each(cb = async (item, index) => {}) {
@@ -197,33 +229,21 @@ export class ModelItem {
     };
     this.#belongs = belongs;
 
-    // Dont have any data yet.. I'm newly created!
-    // But if newlyCreated is forced. then data is a template!
+    // data = undefined then #newlyCreated is true
+    // data = {...} but newlyCreated == true then #newlyCreated is true
+    // data = {...} but newlyCreated == false then #newlyCreated is false
     this.#newlyCreated = newlyCreated || data === undefined;
 
-    // So i will put my data to be pushed to database.
+    // If newlyCreated then put queue data to be pushed to db
     if (newlyCreated && typeof data == "object")
       this.#mutation = Object.keys(data);
 
     const that = this;
-    const attributes = [];
 
-    for (const col of Object.getOwnPropertyNames(this.#model).filter(
-      (item) => typeof this.#model[item] === "function" && item.startsWith("_")
-      // Like _haha() and _test()
-    )) {
-      const name = col.substring(1); // Remove that underscore
-      attributes.push(name);
-
-      if (name.startsWith("#") || name.endsWith(")")) {
-        continue; // We won't define this.
-      }
-      Object.defineProperty(this, name, {
+    for (const attr of this.#model.attributes) {
+      Object.defineProperty(this, attr.name, {
         get() {
-          if (typeof that.#model[col] === "function") {
-            return that.#model[col](that);
-          }
-          return undefined;
+          return attr.cb.call(this);
         },
         set(v) {},
       });
@@ -233,23 +253,32 @@ export class ModelItem {
       if (col.startsWith("#") || col.endsWith(")")) {
         continue;
       }
-      if (attributes.includes(col)) {
+
+      if (this.#model.attributes.includes(col)) {
         continue; // When an attribute is defined
       }
+
       Object.defineProperty(this, col, {
         get() {
           return that.#data[col];
         },
         set(v) {
           that.#data[col] = v;
-          that.#mutation.carePush(col);
+          if (!that.#mutation.includes(col)) that.#mutation.push(col);
         },
       });
     }
+
+    this.superConstructor = this.constructor;
+    this.constructor = this.model;
   }
 
   get data() {
     return this.#data;
+  }
+
+  get model() {
+    return this.#model;
   }
 
   toString() {
@@ -291,6 +320,8 @@ export class ModelItem {
   }
 
   async save() {
+    if (!this.#newlyCreated && this.#mutation.length == 0) return false;
+
     const res = await this.#model.dbdriver.commands[
       this.#newlyCreated ? "insertRow" : "updateRow"
     ]({
@@ -304,18 +335,9 @@ export class ModelItem {
         throw new EmptyDataError("Cannot create an item with empty data.");
 
       this.#newlyCreated = false; // It's no longer new.
-      const res = await this.#model.dbdriver.commands.lastinsert(
-        this.#model.columns,
-        this.#model.table,
-        this.#model.primary
-      );
 
-      for (const col of this.#model.columns) {
-        // Let's fetch data, there are some changes. like auto_increment, defaults...
-        if (res[0] != undefined) {
-          this.#data[col] = res[0][col];
-          if(Object.hasOwnProperty.call(this.#clause, col)) this.#clause[col] = res[0][col];
-        }
+      if (res.insertId) {
+        this.#data[this.#model.primary] = res.insertId;
       }
     }
 
@@ -337,7 +359,7 @@ export class Model {
   static table = undefined;
   static columns = [];
   static guarded = [];
-  static attributes = [];
+  //static attributes = [];
   static primary = undefined;
   static initilazed = false;
   static dbdriver;
@@ -345,15 +367,19 @@ export class Model {
   static async init(connection, ...models) {
     if (connection instanceof Promise) connection = await connection;
 
-    if (connection.prototype instanceof Model) {
+    if (connection instanceof Model) {
       // All of arguments are models?
       models.push(connection);
-      this.dbdriver = await NodeORM.determine();
+      connection = undefined;
     }
 
     if (models.length) {
       this.dbdriver = await NodeORM.determine(connection);
-      // I am used to init other friends...
+
+      // When:
+      // Model.init(connectionOrModel, ...models, Post, ...models); <-- This step
+      // This will call -> Post.init(conn)
+
       for (const model of models) {
         if (!(model.prototype instanceof Model)) {
           continue;
@@ -361,14 +387,31 @@ export class Model {
         await model.init(this.dbdriver);
       }
     } else {
+      this.attributes = [];
       this.dbdriver = connection;
-      // Ha? My turn!
+
+      for (const col of Object.getOwnPropertyNames(this).filter(
+        (item) => item.startsWith("_") && typeof this[item] === "function"
+        // Like _foobar() and _test()
+      )) {
+        if (col.startsWith("#") || col.endsWith(")")) {
+          continue; // We won't define this.
+        }
+
+        this.attributes.push({
+          name: col.substring(1),
+          cb: this[col],
+        }); // attributes = ["foobar", "test"]
+      }
+
       // When:
-      // Model.init(...models, Post, ...models);
-      // This will call -> Post.init(...args)
+      // Model.init(connectionOrModel, ...models, Post, ...models);
+      // This will call -> Post.init(conn) <-- This step
 
       if (this.table == undefined) {
         this.table = this.name.toLowerCase().toPlural();
+        // Post => posts
+        // Category => categories
       }
 
       if (this.connection == undefined) {
@@ -387,7 +430,7 @@ export class Model {
         this.primary = "id";
 
         for (const row of result) {
-          // We don't want our guarded columns to be shown and accessed.
+          // We don't want our guarded columns to be accessed.
           if ([...this.guarded].includes(row.name)) {
             continue;
           }
@@ -406,8 +449,14 @@ export class Model {
       this.initilazed = true;
     }
 
+    if (typeof this.afterInit == "function") {
+      await this.afterInit();
+    }
+
     return this.dbdriver;
   }
+
+  static async afterInit() {}
 
   static async all() {
     fire(errors.uninitilazedModel, !this.initilazed);
@@ -427,7 +476,10 @@ export class Model {
   static wherePrimary(x) {
     fire(errors.uninitilazedModel, !this.initilazed);
     if (!this.primary) {
-      return null;
+      if (!this.columns[0]) {
+        return null;
+      }
+      return this.where(this.columns[0], "=", x);
     }
     return this.where(this.primary, "=", x);
   }

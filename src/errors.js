@@ -1,3 +1,5 @@
+export class LibraryNotFound extends Error {}
+
 export class EmptyDataError extends Error {
   name = "EmptyDataError";
   code = "";

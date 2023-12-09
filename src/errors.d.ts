@@ -1,4 +1,19 @@
 /**
+ * Custom Error class for indicating that a required library is not found.
+ */
+export declare class LibraryNotFound extends Error {
+  /**
+   * The name of the error (set to "LibraryNotFound").
+   */
+  name: string;
+  /**
+   * Creates a new instance of the LibraryNotFound error class.
+   * @param message - The error message.
+   */
+  constructor(message: string);
+}
+
+/**
  * Custom Error class for representing an error when data is empty.
  */
 export declare class EmptyDataError extends Error {

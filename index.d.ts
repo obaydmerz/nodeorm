@@ -1,5 +1,4 @@
 // index.d.ts
-// Importing the Collection class
 import { Collection } from "./src/collection.js";
 
 // Importing database driver classes
@@ -10,6 +9,10 @@ import {
   SQLiteDBDriver,
 } from "./src/multisupport.js";
 
+/**
+ * Main class representing the Node ORM library.
+ * @class NodeORM
+ */
 export declare class NodeORM {
   /**
    * An array of supported database drivers.
@@ -29,7 +32,10 @@ export declare class NodeORM {
   static determine(dbinstance?: any): Promise<DBDriver>;
 }
 
-/** A class that let's you make complex sql queries */
+/**
+ * A class that lets you make complex SQL queries.
+ * @class SQLBuilder
+ */
 export declare class SQLBuilder {
   /**
    * Creates a new SQLBuilder instance for the specified table and model.
@@ -93,7 +99,7 @@ export declare class SQLBuilder {
    * Executes the SQL query and returns a Collection of ModelItems representing the result.
    * @returns A Promise that resolves to a Collection of ModelItems representing the query result, or undefined if no result found.
    */
-  get(): Promise<Collection<ModelItem> | undefined>;
+  get(): Promise<Collection | undefined>;
 
   /**
    * Retrieves the first ModelItem from the SQL query result.
@@ -131,7 +137,10 @@ export declare class SQLBuilder {
   delete(): Promise<void>;
 }
 
-/** Represents an item from a model */
+/**
+ * Represents an item from a model.
+ * @class ModelItem
+ */
 export declare class ModelItem {
   /**
    * Creates a new ModelItem instance.
@@ -172,7 +181,7 @@ export declare class ModelItem {
    * @param myKey - The local key in the current model (optional).
    * @returns A Collection of ModelItems representing the related model's items that belong to the current item.
    */
-  hasMany(model: Model, hisKey?: string, myKey?: string): Collection<ModelItem>;
+  hasMany(model: Model, hisKey?: string, myKey?: string): Collection;
 
   /**
    * Establishes a "belongs to" relationship between the current item and a related model.
@@ -200,14 +209,50 @@ export declare class ModelItem {
   delete(): Promise<any>;
 }
 
-/** The base class to easly access your database */
+/**
+ * The base class to easily access your database.
+ * @class Model
+ */
 export declare class Model {
+  /**
+   * Define a custom table for the model.
+   *
+   * If left `undefined`, the model will infer the table name from the class name.
+   * For example, `Test` will map to `tests`, `Category` to `categories`, and so on.
+   */
   static table: string | undefined;
+
+  /**
+   * Define the columns for your table.
+   *
+   * When left empty, the model will retrieve the columns from the database.
+   */
   static columns: string[];
+
+  /**
+   * Prevent specified columns from being defined from the database.
+   *
+   * This property works only if the `columns` array is empty.
+   */
   static guarded: string[];
+
   static attributes: string[];
+
+  /**
+   * Define the primary key for the table.
+   *
+   * Auto-set of this property works only if the `columns` array is empty.
+   */
   static primary: string | undefined;
+
+  /**
+   * Indicates whether the model has been initialized.
+   */
   static initilazed: boolean;
+
+  /**
+   * The database driver used for database interactions.
+   */
   static dbdriver: any;
 
   /**
@@ -216,13 +261,16 @@ export declare class Model {
    * @param models - Optional model classes that depend on the current model.
    * @returns A Promise that resolves when the model is successfully initialized.
    */
-  static init(connection: typeof DBDriver | Object, ...models: (new () => Model)[]): Promise<void>;
+  static init(
+    connection: typeof DBDriver | Object,
+    ...models: (new () => Model)[]
+  ): Promise<void>;
 
   /**
    * Retrieves all items of the model from the database.
    * @returns A Promise that resolves to a Collection of ModelItems representing all items of the model.
    */
-  static all(): Promise<Collection<ModelItem>>;
+  static all(): Promise<Collection>;
 
   /**
    * Creates a new ModelItem with the specified template data.
