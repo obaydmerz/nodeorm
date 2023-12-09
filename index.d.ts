@@ -30,7 +30,7 @@ export declare class NodeORM {
   static determine(dbinstance?: any): Promise<DBDriver>;
 }
 
-export declare function initalize(
+export declare function initialize(
   connection: typeof DBDriver,
   ...models: Array<typeof Model>
 ): Promise<void>;

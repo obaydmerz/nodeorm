@@ -122,25 +122,27 @@ export class SQLBuilder {
 
   async first() {
     if (!this.#orderBy) this.#orderBy = this.#model.primary;
-
     this.#limit = 1;
-
-    return await this.get().first();
+    return (await this.get()).first();
   }
 
   async firstOrCreate() {
-    const item = (await this.get()).first(0);
-    return item || this.#model.create(this._extra.newCreationTemplate);
+    return (
+      (await this.first()) ||
+      this.#model.create(this._extra.newCreationTemplate)
+    );
   }
 
   async last() {
     if (!this.#orderBy) this.#orderBy = this.#model.primary;
     if (this.#orderType.toLowerCase() == "desc") this.#orderType = "ASC";
     else this.#orderType = "DESC";
-
     this.#limit = 1;
-
     return (await this.get()).first();
+  }
+
+  async lastOrCreate() {
+    return (await this.last()) || this.#model.create(this._extra.newCreationTemplate);
   }
 
   async each(cb = async (item, index) => {}) {

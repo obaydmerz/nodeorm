@@ -1,9 +1,12 @@
 {
   "name": "@obayd/nodeorm",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "NodeORM - A powerful and elegant ORM (Object-Relational Mapping) library for Node.js, inspired by Laravel's Eloquent. Simplify database interactions and streamline your Node.js application development.",
   "main": "index.js",
   "type": "module",
+  "scripts": {
+    "test": "SET NODE_OPTIONS='--experimental-vm-modules'; jest"
+  },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/obaydmerz/nodeorm.git"
@@ -31,5 +34,8 @@
   "bugs": {
     "url": "https://github.com/obaydmerz/nodeorm/issues"
   },
-  "homepage": "https://github.com/obaydmerz/nodeorm#readme"
+  "homepage": "https://github.com/obaydmerz/nodeorm#readme",
+  "jest": {
+    "transform": {}
+  }
 }

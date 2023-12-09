@@ -185,10 +185,22 @@ export declare class Model {
   static last(): Promise<ModelItem | undefined>;
 
   /**
+   * Retrieves the last item of the model from the database, or creates it.
+   * @returns A Promise that resolves to the last ModelItem from the query result, or a new one if not found.
+   */
+  static lastOrCreate(): Promise<ModelItem>;
+
+  /**
    * Retrieves the first item of the model from the database.
    * @returns A Promise that resolves to the first ModelItem of the model, or undefined if the model is empty.
    */
   static first(): Promise<ModelItem | undefined>;
+
+  /**
+   * Retrieves the last item of the model from the database, or creates it.
+   * @returns A Promise that resolves to the first ModelItem from the query result, or a new one if not found.
+   */
+  static firstOrCreate(): Promise<ModelItem>;
 
   /**
    * Constructs a SQLBuilder instance with a WHERE expression for the query.

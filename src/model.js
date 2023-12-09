@@ -274,9 +274,19 @@ export class Model {
     return this.query().last();
   }
 
+  static lastOrCreate() {
+    fire(errors.uninitilazedModel, !this.initilazed);
+    return this.query().lastOrCreate();
+  }
+
   static first() {
     fire(errors.uninitilazedModel, !this.initilazed);
     return this.query().first();
+  }
+
+  static firstOrCreate() {
+    fire(errors.uninitilazedModel, !this.initilazed);
+    return this.query().firstOrCreate();
   }
 
   static whereExpression(key, valueOrSep, value = undefined) {

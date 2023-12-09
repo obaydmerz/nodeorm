@@ -53,7 +53,7 @@ export class NodeORM {
     for (const dbdriver of this.dbdrivers) {
       const made = await dbdriver.make(dbinstance);
       if (made instanceof DBDriver) {
-        if (!dbinstance && !this.defaultDB) this.defaultDB = made; // Prevent creating other connections using multiple initalize().
+        if (!dbinstance && !this.defaultDB) this.defaultDB = made; // Prevent creating other connections using multiple initialize().
 
         return made;
       }
@@ -64,7 +64,7 @@ export class NodeORM {
   }
 }
 
-export async function initalize(connection, ...models) {
+export async function initialize(connection, ...models) {
   if (connection instanceof Promise) connection = await connection;
 
   if (connection.prototype instanceof Model) {

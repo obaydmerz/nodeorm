@@ -91,6 +91,12 @@ export declare class SQLBuilder {
   last(modIndex?: number): Promise<ModelItem | undefined>;
 
   /**
+   * Retrieves the last ModelItem from the SQL query result, or creates it.
+   * @returns A Promise that resolves to the last ModelItem from the query result, or a new one if not found.
+   */
+  lastOrCreate(): Promise<ModelItem>;
+
+  /**
    * Iterates over each ModelItem in the SQL query result and applies the provided callback function to each item.
    * @param cb - The callback function to apply to each ModelItem.
    * @returns A Promise that resolves to a boolean indicating whether all iterations were successful (true) or not (false).

@@ -139,6 +139,7 @@ export class MySQLDBDriver extends DBDriver {
       {
         libraries: (envObject["DB_LIBRARY"] || "").split(","),
         host: envObject["DB_HOST"] || "localhost",
+        port: parseInt(envObject["DB_PORT"]) || 3306,
         database: envObject["DB_DATABASE"] || "db",
         user: envObject["DB_USERNAME"] || "root",
         password: envObject["DB_PASSWORD"] || "",
