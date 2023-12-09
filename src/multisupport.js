@@ -1,4 +1,4 @@
-import { Model } from "../index.js";
+import { Model } from "./model.js";
 import { LibraryNotFound } from "./errors.js";
 import { prepareObj } from "./utils.js";
 import { basename } from "path";

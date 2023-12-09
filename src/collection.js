@@ -1,6 +1,41 @@
-import { Model } from "../index.js";
+import { Model, ModelItem } from "./model.js";
 
 export class Collection {
+  async makeJoined(model, result, joins, newCreationTemplate) {
+    const res = new this([], {
+      createModel: model,
+      newCreationTemplate: newCreationTemplate,
+    });
+
+    for (const iterator of result) {
+      const data = {};
+      const belongs = {};
+
+      for (const join of joins) {
+        const joinData = {};
+        for (const joinCol of join.columns) {
+          const columnKey = `${join.table}.${joinCol}`;
+          if (iterator[columnKey] !== undefined) {
+            joinData[joinCol] = iterator[columnKey];
+          }
+        }
+
+        belongs[join.name] = new ModelItem(join, joinData);
+      }
+
+      for (const column of model.columns) {
+        if (!model.columns.includes(column)) {
+          continue;
+        }
+        data[column] = iterator[column];
+      }
+
+      res.push(new ModelItem(model, data, belongs));
+    }
+
+    return res;
+  }
+
   #arr = [];
   #conf = {};
 
@@ -20,7 +55,7 @@ export class Collection {
       this.#conf.createModel == undefined ||
       !(this.#conf.createModel.prototype instanceof Model)
     ) {
-      return console.error("Collection: No modal provided.");
+      return console.error("Collection: No model provided.");
     }
     return this.#conf.createModel.create({
       ...this.#conf.newCreationTemplate,
