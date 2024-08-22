@@ -121,4 +121,19 @@ export class Collection {
       await item.delete();
     }
   }
+
+  [Symbol.iterator]() {
+    let index = 0;
+    const arr = this.#arr;
+
+    return {
+      next() {
+        if (index < arr.length) {
+          return { value: arr[index++], done: false };
+        } else {
+          return { value: undefined, done: true };
+        }
+      },
+    };
+  }
 }

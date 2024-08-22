@@ -248,14 +248,24 @@ export class MySQLDBDriver extends DBDriver {
   query(query, prepared = []) {
     return new Promise((resolve, reject) => {
       const qu = this.dbinstance.format(query, prepared);
-      this.dbinstance.query(qu, [], (err, result) => {
+
+      // Function to support promises and/or traditional callbacks
+      function done(err, result) {
         if (err) {
           console.log("\nSQL:", qu.split(",").join(",\n"));
 
           return reject(err);
         }
+
         resolve(result);
-      });
+      }
+
+      const funcreturn = this.dbinstance.query(qu, [], done);
+      if (funcreturn instanceof Promise) {
+        funcreturn
+          .then((res) => done(null, res[0]))
+          .catch((err) => done(err, null));
+      }
     });
   }
 }

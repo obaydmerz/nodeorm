@@ -36,7 +36,13 @@ String.prototype.toPlural = function () {
   if (this.endsWith("y")) {
     return this.slice(0, -1) + "ies";
   }
-  if (this.endsWith("s")) {
+  if (
+    this.endsWith("s") ||
+    this.endsWith("x") ||
+    this.endsWith("z") ||
+    this.endsWith("ch") ||
+    this.endsWith("sh")
+  ) {
     return this + "es";
   }
   return this + "s";
@@ -46,7 +52,13 @@ String.prototype.toSingular = function () {
   if (this.endsWith("ies")) {
     return this.slice(0, -3) + "y";
   }
-  if (this.endsWith("es")) {
+  if (
+    this.endsWith("ses") ||
+    this.endsWith("xes") ||
+    this.endsWith("zes") ||
+    this.endsWith("ches") ||
+    this.endsWith("shes")
+  ) {
     return this.slice(0, -2);
   }
   if (this.endsWith("s")) {
