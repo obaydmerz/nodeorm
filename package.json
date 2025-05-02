@@ -1,0 +1,54 @@
+{
+  "name": "nodeorm",
+  "version": "0.1.0",
+  "description": "A Laravel Eloquent-inspired ORM for Node.js, focusing on performance, simplicity, and developer experience.",
+  "type": "module",
+  "main": "src/index.js",
+  "exports": {
+    ".": "./src/index.js",
+    "./drivers": "./src/drivers/index.js",
+    "./blueprints": "./src/blueprints/index.js"
+  },
+  "scripts": {
+    "test": "node --test tests/nodeorm.test.js"
+  },
+  "keywords": [
+    "orm",
+    "database",
+    "sql",
+    "laravel",
+    "eloquent",
+    "nodejs",
+    "mysql",
+    "postgres",
+    "sqlite",
+    "query builder"
+  ],
+  "author": {
+    "name": "Abderrahmene Merzoug (Mido)",
+    "url": "https://github.com/obaydmerz"
+  },
+  "license": "MIT",
+  "homepage": "https://github.com/obaydmerz/nodeorm#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/obaydmerz/nodeorm.git"
+  },
+  "bugs": {
+    "url": "https://github.com/obaydmerz/nodeorm/issues"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "devDependencies": {
+    "@faker-js/faker": "^9.7.0",
+    "@neondatabase/serverless": "^0.6.0",
+    "mysql2": "^3.6.0",
+    "pg": "^8.11.0",
+    "sqlite3": "^5.1.7",
+    "ws": "^8.18.1"
+  },
+  "dependencies": {
+    "dotenv": "^16.5.0"
+  }
+}
